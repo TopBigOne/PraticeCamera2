@@ -163,8 +163,8 @@ class MainActivity : AppCompatActivity(), Handler.Callback {
                 val cameraDevice = cameraDeviceFuture?.get()
                 val captureSession = captureSessionFuture?.get()
                 cameraDevice?.let {
-                    if(previewSurface==null){
-                        Log.e(TAG, "handleMessage: previewSurface is NULL" )
+                    if(previewSurface == null) {
+                        Log.e(TAG, "handleMessage: previewSurface is NULL")
                     }
                     previewImageRequestBuilder?.addTarget(previewSurface!!)
                     captureImageRequestBuilder?.addTarget(previewSurface!!)
@@ -214,6 +214,29 @@ class MainActivity : AppCompatActivity(), Handler.Callback {
                     }
                 }
             }
+
+
+            MSG_SET_IMAGE_SIZE -> {
+                Log.d(TAG, "Handle message: msg set image size")
+                val cameraCharacteristics = cameraCharacteristicsFuture?.get()
+                val captureImageRequestBuilder = captureImageRequestBuilder
+
+                if(cameraCharacteristics != null && captureImageRequestBuilder != null) {
+                    // Create a JPEG ImageReader instance according to the image size.
+                    val maxWidth = msg.arg1
+                    val maxHeight = msg.arg2
+                    val imageSize = getOptimalSize(cameraCharacteristics, ImageReader::class.java, maxWidth, maxHeight)!!
+
+                    jpegImageReader = ImageReader.newInstance(imageSize.width, imageSize.height, ImageFormat.JPEG, 5)
+                    jpegImageReader?.setOnImageAvailableListener(OnJpegImageAvailableListener(), cameraHandler)
+                    jpegSurface = jpegImageReader?.surface
+                    // Configure the thumbnail size if any suitable size found, no thumbnail will be generated if the thumbnail size is null.
+                    val availableThumbnailSizes = cameraCharacteristics[CameraCharacteristics.JPEG_AVAILABLE_THUMBNAIL_SIZES]
+                    val thumbnailSize = getOptimalSize(availableThumbnailSizes, maxWidth, maxHeight)
+                    captureImageRequestBuilder[CaptureRequest.JPEG_THUMBNAIL_SIZE] = thumbnailSize
+                }
+            }
+
 
             MSG_CAPTURE_IMAGE -> {
                 Log.d(TAG, "Handle message: MSG_CAPTURE_IMAGE")
@@ -270,7 +293,6 @@ class MainActivity : AppCompatActivity(), Handler.Callback {
 
                 }
 
-
             }
             MSG_START_CAPTURE_IMAGE_CONTINUOUSLY -> {
                 Log.d(TAG, "Handle message: MSG_START_CAPTURE_IMAGE_CONTINUOUSLY")
@@ -299,6 +321,10 @@ class MainActivity : AppCompatActivity(), Handler.Callback {
 
                 }
             }
+            else -> {
+                Log.e(TAG, "handleMessage: case : ${msg.what} 不在处理范围之内啊.", )
+            }
+
         }
 
         return false
@@ -475,7 +501,7 @@ class MainActivity : AppCompatActivity(), Handler.Callback {
 
     private inner class OnJpegImageAvailableListener : ImageReader.OnImageAvailableListener {
         private val dateFormat: DateFormat = SimpleDateFormat("yyyyMMddHHmmssSSS", Locale.getDefault())
-        private val cameraDir: String = ""
+        private val cameraDir: String = "${Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM)}/Camera"
 
         @WorkerThread
         override fun onImageAvailable(imageReader: ImageReader?) {
@@ -500,6 +526,11 @@ class MainActivity : AppCompatActivity(), Handler.Callback {
                             val location = captureResult.get(CaptureResult.JPEG_GPS_LOCATION)
                             val longitude = location?.longitude ?: 0.0
                             val latitude = location?.latitude ?: 0.0
+
+
+                            Log.d(TAG, "onImageAvailable:  path is : $path")
+
+
                             // write the jpeg data into the specified file.
                             File(path).writeBytes(jpegByteArray)
                             // Insert the image information into the media store.
