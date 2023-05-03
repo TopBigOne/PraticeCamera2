@@ -35,6 +35,7 @@ import java.util.concurrent.BlockingQueue
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import java.util.concurrent.LinkedBlockingDeque
+import kotlin.math.log
 
 class MainActivity : AppCompatActivity(), Handler.Callback {
     companion object {
@@ -151,7 +152,6 @@ class MainActivity : AppCompatActivity(), Handler.Callback {
 
             MSG_CREATE_REQUEST_BUILDERS -> {
                 Log.d(TAG, "Handle message: MSG_CREATE_REQUEST_BUILDERS")
-                Log.d(TAG, "Handle message: MSG_CREATE_REQUEST_BUILDERS")
                 val cameraDevice = cameraDeviceFuture?.get()
                 cameraDevice?.let {
                     previewImageRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
@@ -163,11 +163,16 @@ class MainActivity : AppCompatActivity(), Handler.Callback {
                 val cameraDevice = cameraDeviceFuture?.get()
                 val captureSession = captureSessionFuture?.get()
                 cameraDevice?.let {
+                    if(previewSurface==null){
+                        Log.e(TAG, "handleMessage: previewSurface is NULL" )
+                    }
                     previewImageRequestBuilder?.addTarget(previewSurface!!)
                     captureImageRequestBuilder?.addTarget(previewSurface!!)
 
                     previewImageRequestBuilder?.addTarget(previewDataSurface!!)
                     captureImageRequestBuilder?.addTarget(previewDataSurface!!)
+
+
                     val previewRequest = previewImageRequestBuilder?.build()
                     previewRequest?.let {
                         captureSession?.setRepeatingRequest(previewRequest, RepeatingCaptureStateCallback(), mainHandler)
@@ -182,27 +187,29 @@ class MainActivity : AppCompatActivity(), Handler.Callback {
                 captureSession?.stopRepeating()
             }
             MSG_SET_PREVIEW_SIZE -> {
-                Log.d(TAG, "Handle message: MSG_SET_IMAGE_SIZE")
+                Log.d(TAG, "Handle message: msg set image size")
                 val cameraCharacteristics = cameraCharacteristicsFuture?.get()
                 cameraCharacteristics?.let {
+                    // get the optimal preview size according to the specified max width and max height
                     val maxWidth = msg.arg1
                     val maxHeight = msg.arg2
                     val previewSize = getOptimalSize(cameraCharacteristics, SurfaceTexture::class.java, maxWidth, maxHeight)
-                    val previewSurfaceTexture = previewSurfaceTextureFuture?.get()
-                    previewSurfaceTexture?.let {
-                        previewSize?.let {
-                            previewSurfaceTexture.setDefaultBufferSize(previewSize.width, previewSize.height)
-                            previewSurface = Surface(previewSurfaceTexture)
-                        }
 
+                    // set the surfaceTexture`s buffer size with preview size.
+                    val surfaceTexture = previewSurfaceTextureFuture?.get()
+                    surfaceTexture?.let {
+                        previewSize?.let {
+                            surfaceTexture.setDefaultBufferSize(previewSize.width, previewSize.height)
+                            previewSurface = Surface(surfaceTexture)
+                        }
                     }
                     val imageFormat = ImageFormat.YUV_420_888
                     val streamConfigurationMap = cameraCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
                     if(streamConfigurationMap?.isOutputSupportedFor(imageFormat) == true) {
                         previewSize?.let {
                             previewDataImageReader = ImageReader.newInstance(previewSize.width, previewSize.height, imageFormat, 3)
-                            previewDataImageReader?.setOnImageAvailableListener(OnPreviewDataAvailableListener(), cameraHandler)
-                            previewDataSurface = previewDataImageReader?.surface
+                            previewDataImageReader!!.setOnImageAvailableListener(OnPreviewDataAvailableListener(), cameraHandler)
+                            previewDataSurface = previewDataImageReader!!.surface
                         }
                     }
                 }
@@ -321,10 +328,12 @@ class MainActivity : AppCompatActivity(), Handler.Callback {
         cameraPreview.surfaceTextureListener = PreviewSurfaceTextureListener()
         captureImageButton.setOnTouchListener(CaptureImageButtonListener(this))
     }
+
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.camera_menu, menu)
         return true
     }
+
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             R.id.switch_camera -> {
@@ -339,8 +348,8 @@ class MainActivity : AppCompatActivity(), Handler.Callback {
     private fun switchCamera() {
         val cameraDevice = cameraDeviceFuture?.get()
         val oloCameraId = cameraDevice?.id
-        val newCameraId = if(oloCameraId ==frontCameraId ) backCameraId else frontCameraId
-        if(newCameraId!=null){
+        val newCameraId = if(oloCameraId == frontCameraId) backCameraId else frontCameraId
+        if(newCameraId != null) {
             closeCamera()
             openCamera(newCameraId)
             createCaptureRequestBuilder()
@@ -365,6 +374,7 @@ class MainActivity : AppCompatActivity(), Handler.Callback {
         super.onResume()
         deviceOrientationListener.enable()
         if(checkRequiredPermissions()) {
+            Log.d(TAG, "onResume: checkRequiredPermissions ok.")
             val cameraId = backCameraId ?: frontCameraId
             openCamera(cameraId)
             createCaptureRequestBuilder()
