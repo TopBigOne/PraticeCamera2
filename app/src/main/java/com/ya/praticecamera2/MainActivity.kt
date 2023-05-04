@@ -95,6 +95,8 @@ class MainActivity : AppCompatActivity(), Handler.Callback {
 
     private var backCameraId: String? = null
     private var backCameraCharacteristics: CameraCharacteristics? = null
+
+    // 由ImageReader 的getSurface() 函数赋值
     private var jpegSurface: Surface? = null
     private var jpegImageReader: ImageReader? = null
 
@@ -296,9 +298,12 @@ class MainActivity : AppCompatActivity(), Handler.Callback {
             }
             MSG_START_CAPTURE_IMAGE_CONTINUOUSLY -> {
                 Log.d(TAG, "Handle message: MSG_START_CAPTURE_IMAGE_CONTINUOUSLY")
+                // 相机属性
                 val cameraCharacteristics = cameraCharacteristicsFuture?.get()
+                // 相机会话
                 val captureSession = captureSessionFuture?.get()
                 if(captureSession != null && cameraCharacteristics != null && captureImageRequestBuilder != null && jpegSurface != null) {
+                    // 拍照请求
                     // Configure the jpeg orientation according to the device orientation.
                     val deviceOrientation = deviceOrientationListener.orientation
                     val jpegOrientation = getJpegOrientation(cameraCharacteristics, deviceOrientation)
@@ -313,6 +318,7 @@ class MainActivity : AppCompatActivity(), Handler.Callback {
 
                     // Add the target surface to receive the jpeg image data.
 
+                    // 添加 surface
                     captureImageRequestBuilder!!.addTarget(jpegSurface!!)
 
                     // Use the repeating mode to capture image continuously.
@@ -701,7 +707,9 @@ class MainActivity : AppCompatActivity(), Handler.Callback {
 
     private inner class CameraStateCallback : CameraDevice.StateCallback() {
         override fun onOpened(camera: CameraDevice) {
+            Log.d(TAG, "CameraStateCallback onOpened:  相机打开成功")
             cameraDeviceFuture?.set(camera)
+            // 获取当前相机属性
             cameraCharacteristicsFuture?.set(getCameraCharacteristics(camera.id))
 
         }
@@ -802,11 +810,14 @@ class MainActivity : AppCompatActivity(), Handler.Callback {
         }
 
         override fun onDoubleTap(e: MotionEvent?): Boolean {
-            captureImageBurst(10)
+            captureImageBurst(6)
             return true
         }
     }
 
+    /**
+     * 连续拍照
+     */
     private fun startCaptureImageContinuously() {
         cameraHandler?.sendEmptyMessage(MSG_START_CAPTURE_IMAGE_CONTINUOUSLY)
     }
